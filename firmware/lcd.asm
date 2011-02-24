@@ -117,16 +117,17 @@ LCDbusyloop
 	; AC3:0 address counter is available now, but do we need it? No.
 	BCF	PORTB,LCD_EN	; Disable
 	BCF	PORTB,LCD_RW	; Go back to WRITE, so that we can check buttons or set PORTB to outputs
-	BTFSS	lcd_BF,LCD_D7	; are we still busy?
-	GOTO	LCDready	; nope, get out!
+	BTFSC	lcd_BF,LCD_D7	; are we still busy?
+;	BTFSS	lcd_BF,LCD_D7	; are we still busy?
+;	GOTO	LCDready	; nope, get out!
 
 	; don't go too long w/o allowing button interrup to run
-	BSF 	INTCON, RBIE	; Turn interrupt back on
-	DelayUs	6
-	BCF 	INTCON, RBIE	; Turn interrupt back off
+;	BSF 	INTCON, RBIE	; Turn interrupt back on
+;	DelayUs	6
+;	BCF 	INTCON, RBIE	; Turn interrupt back off
 	GOTO	LCDbusyloop
+;LCDready
 
-LCDready
 	; make data lines output again
 	BANKSEL	TRISB
 	clrf	TRISB
@@ -251,17 +252,17 @@ LCDClear
 
 ; output fixed-point number in DU:DH.DL
 LCDPutFpDX
-	clrf	CH	; no padding
 	MOVWORD	AX,DX+1
 	CALL	LCDPutUInt	; kills AX et al.
 	movlw	'.'
 	CALL	LCDPutChar
-	BSF	CH,2	; do two-digit zeros
+	CLRF	CH	; no padding
+;	BSF 	CH,2	; do two-digit zeros
 	movf	DX,w
 	;	AX = DL * 100 / 256
 	movwf	AX
 	clrf	AX+1
-	movlw	d'100'
+	movlw	d'10'
 	movwf	BX
 	clrf	BX+1
 	CALL	Mult16x16	; PROD = AX * BX
@@ -269,22 +270,22 @@ LCDPutFpDX
 	; -- now AX = DL * 100 / 256
 	goto	LCDPutUInt	; kills AX et al.
 	; add a space to be sure a shrinking number doesn't leave trails
-	movlw	' '
-	GOTO	LCDPutChar	; returns
+;	movlw	' '
+;	GOTO	LCDPutChar	; returns
 ;	CALL	LCDPutChar
 ;	RETURN
 
 ; Write unsigned AX to the LCD
 ; Set CH bit 0 to pad, clear to not pad
 ; Set CH bit 1 to pad with 0s, clear to pad with spaces
-; Set CH bit 2 for clock padding
+; Set CH bit 2 for clock padding (two digits)
 LCDPutUInt	;Function start
 	call	LCDMode
 	BSF 	sav_RS, LCD_RS
 	CALL	Bin2BCD	; convert AX to BCDU,BCDH,BCDL
 	BCF 	CH,7	; clear the "already seen first non-zero digit" flag
-	SWAPF	BCDU, w
-	CALL	LCDWrite0
+;	SWAPF	BCDU, w
+;	CALL	LCDWrite0
 	MOVF	BCDU, w
 	CALL	LCDWrite0
 	SWAPF	BCDH, w
