@@ -44,7 +44,15 @@ ifndef ISR_ASM
 	extern	DelayMs
 	extern	EERead
 	extern	EEWrite
+	extern	DispMode
 endif
+
+; bits set in DispMode.. some are mutually exclusive, some are not
+#define DM_MAIN	0
+#define DM_TOTALS 1
+#define DM_SETUP1 2
+#define DM_SETUP2 3
+#define	DM_DEBUG 7
 
 #define AL AX
 #define AH (AX + 1)
@@ -62,6 +70,16 @@ ISR_TMR0H EQU	2	; TMR0H flipped
 GetTS MACRO d
 	BCF 	INTCON,TMR0IE	; disable the TMR0 interrupt so that TMR0 and TMR0H are good
 	movf	TMR0, w
+	movwf	d
+	movf	TMR0H, w
+	movwf	(d + 1)
+	BSF 	INTCON,TMR0IE	; re-enable the TMR0 interrupt
+ ENDM
+
+GetTS1 MACRO d
+	BCF 	INTCON,TMR0IE	; disable the TMR0 interrupt so that TMR0 and TMR0H are good
+	movf	TMR0, w
+	BSF 	STATUS, RP0	; BANK1
 	movwf	d
 	movf	TMR0H, w
 	movwf	(d + 1)
@@ -142,6 +160,23 @@ SUB24 MACRO d,s
 	subwf	(d + 2), f
  ENDM
 
+SUB32 MACRO d,s
+	movf	s, w 
+	subwf	d,f 
+	movf	(s + 1), w 
+	btfss	STATUS, 0 
+	incfsz	(s + 1) ,w 
+	subwf	(d + 1), f
+	movf	(s + 2), w 
+	btfss	STATUS, 0 
+	incfsz	(s + 2) ,w 
+	subwf	(d + 2), f
+	movf	(s + 3), w 
+	btfss	STATUS, 0 
+	incfsz	(s + 3) ,w 
+	subwf	(d + 3), f
+ ENDM
+
 ; d += WORD(msb,lsb)
 ADDWORD MACRO d,msb,lsb
 	movf	lsb, w 
@@ -149,6 +184,15 @@ ADDWORD MACRO d,msb,lsb
 	movf	msb, w 
 	btfsc	STATUS, C
 	incfsz	msb ,w 
+	addwf	(d + 1), f
+ ENDM
+
+ADDWORDS MACRO d,s
+	movf	s, w 
+	addwf	d,f 
+	movf	(s + 1), w 
+	btfsc	STATUS, C
+	incfsz	(s + 1) ,w 
 	addwf	(d + 1), f
  ENDM
 
@@ -161,6 +205,23 @@ ADD2416 MACRO d,s
 	addwf	(d + 1), f
 	btfsc	STATUS, C 
 	incf	(d + 2), f
+ ENDM
+
+ADD32 MACRO d, s
+	movf	s, w 
+	addwf	d,f 
+	movf	(s + 1), w 
+	btfsc	STATUS, C 
+	incfsz	(s + 1), w 
+	addwf	(d + 1), f
+	movf	(s + 2), w 
+	btfsc	STATUS, C 
+	incfsz	(s + 2), w 
+	addwf	(d + 2), f
+	movf	(s + 3), w 
+	btfsc	STATUS, C 
+	incfsz	(s + 3), w 
+	addwf	(d + 3), f
  ENDM
 
 ; d += lit;
@@ -185,6 +246,18 @@ CMPWORDLIT MACRO d,lit
 	btfss	STATUS, Z
 	goto	done	; C = 0 result is negative or C = 1 and Z = 0 result is positive
 	movlw	((lit)&0xff) 
+	subwf	d,w	; w = d - lit
+done:
+ ENDM
+
+CMPWORD MACRO d,s
+	local done
+	movf	s+1,w
+	subwf	d+1,w	; w = d[1] - s[1]
+	btfsc	STATUS, C
+	btfss	STATUS, Z
+	goto	done	; C = 0 result is negative or C = 1 and Z = 0 result is positive
+	movf	s,w
 	subwf	d,w	; w = d - lit
 done:
  ENDM
@@ -245,6 +318,24 @@ MOVWORD MACRO d,s
 	movwf	d 
 	movf	(s + 1),w
 	movwf	(d + 1)
+ ENDM
+
+MOV24 MACRO d,s
+	movf	s, w
+	movwf	d 
+	movf	(s + 1),w
+	movwf	(d + 1)
+	movf	(s + 2),w
+	movwf	(d + 2)
+ ENDM
+
+MOV24R MACRO d,s
+	movf	(s + 2),w
+	movwf	(d + 2)
+	movf	(s + 1),w
+	movwf	(d + 1)
+	movf	s, w
+	movwf	d 
  ENDM
 
 SUBWORDS MACRO d,s
