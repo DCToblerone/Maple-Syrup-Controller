@@ -27,13 +27,31 @@
 ;***** END LICENSE BLOCK *****
 ;----------------------------------------------------------------------
 
+ifdef MATH_ASM
+	global Mult16x24
+	global Mult16x16
+	global HexDigit
+	global PROD
+;	global Div16
+	global Div32_16
+	global Div32
+;	global Rem2Frac
+	global Bin2BCD
+	global BCD
+	global InterpolateSpline
+else
+	extern Mult16x24
 	extern Mult16x16
 	extern HexDigit
 	extern PROD
-	extern Divide
+;	extern Div16
+	extern Div32_16
+	extern Div32
+;	extern Rem2Frac
 	extern Bin2BCD
 	extern BCD
 	extern InterpolateSpline
+endif
 
 #define PRODL PROD
 #define PRODH (PROD + 1)
@@ -43,4 +61,17 @@
 #define BCDL BCD
 #define BCDH (BCD + 1)
 #define BCDU (BCD + 2)
+
+#define topL PROD
+#define topH PROD + 1
+#define topU PROD + 2
+#define topX PROD + 3
+#define btmL BX
+#define btmH (BX + 1)
+#define btmU (BX + 2)
+#define btmX (BX + 3)
+#define qL	DX 
+#define qH	(DX + 1)
+#define qU	(DX + 2)
+#define qX	(DX + 3)
 

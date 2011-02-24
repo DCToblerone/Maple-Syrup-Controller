@@ -30,28 +30,12 @@
 	#include <p16f88.inc>
 	radix dec
 	#include "isr.inc"
-
-	global	Bin2BCD
-	global	HexDigit
-	global	Mult16x16
-	global	Divide
-	global	PROD
-	global	BCD
-	global	InterpolateSpline
-
+	#define MATH_ASM
+	#include "math.inc"
 
 _DATA UDATA ;0x0C
 PROD	res	4
 BCD	res	3
-
-#define PRODL	PROD
-#define PRODH	(PROD + 1)
-#define PRODU	(PROD + 2)
-#define PRODX	(PROD + 3)
-
-#define BCDL BCD
-#define BCDH (BCD + 1)
-#define BCDU (BCD + 2)
 
 math CODE
 
@@ -68,10 +52,12 @@ HexDigit
 	return
 
 
-; DMC: Mult16x16 was taken from somewhere on the internet.
+; DMC: Mult16x24 was taken from somewhere on the internet.
 ; DMC: It's a very basic routine and I modified it heavily.
 ; DMC: I don't think someone could ever stake a claim to it
 Mult16x16
+	CLRF	BX+2
+Mult16x24
 	CLRF	PRODX
 	CLRF	PRODU
 	CLRF	PRODH
@@ -89,15 +75,17 @@ Multiply_loop
 	RLF	AH, f
 	BTFSS	STATUS,C
 	GOTO	Multiply_skip
-	MOVF	BL,w
+	MOVF	BX,w
 	ADDWF	PRODL, f
-	MOVF	BH, w
+	MOVF	BX+1, w
 	BTFSC	STATUS,C
-	INCFSZ	BH, w
+	INCFSZ	BX+1, w
 	ADDWF	PRODH, f
+	MOVF	BX+2, w
 	BTFSC	STATUS,C
-	INCF	PRODU, f
-	BTFSC	STATUS,Z
+	INCFSZ	BX+2, w
+	ADDWF	PRODU, f
+	BTFSC	STATUS,C
 	INCF	PRODX, f
 Multiply_skip
 	DECFSZ	CL, f
@@ -108,78 +96,148 @@ Multiply_skip
 
 ; DMC: Divide was taken from somewhere on the internet.
 ; DMC: It's a very basic routine and I don't know if it even works
-; DMC: someone could ever stake a claim to it
+; DMC: I doubt someone could ever stake a claim to it
 
 ;******************************************************************
 ;; DIVIDE
-; Divide one 16-bit number into another, returning the 16-bit result and 
+; Divide one 16-bit number into a 16-bit number, returning the 16-bit result and 
 ; the remainder. Upon entry, the top of the division fraction (the dividend)
 ; must be in topH and topL, and the bottom (divisor) in btmH and btmL. 
 ; If division by zero is attempted, the routine will return immediately with 
 ; the error code of 0FFh in w. Otherwise, it will perform the division, leaving 
 ; the remainder in topH and topL and the result (quotient) in qH and qL. 
 ; Upon return from a successful division, w contains 0. 
-topU	EQU PRODU
-topH	EQU	PRODH	; MSB of top of fraction. 
-topL	EQU	PRODL	; LSB of top of fraction. 
-btmH	EQU	BH	; MSB of bottom of fraction.
-btmL	EQU	BL	; LSB of bottom of fraction.
-qU		EQU	AH	; MSB of quotient. 
-qH		EQU	DH	; MSB of quotient. 
-qL		EQU	DL	; LSB of quotient. 
-count	EQU	CL	; temporary counter
-index	EQU	CH	; temporary counter
 
-Divide
-;	MOVF btmH,w                ; Check for division by 0.
-;	IORWF btmL,w               
-;	BTFSS STATUS,Z
-;	GOTO DIV_ok
-;	MOVLW d'255'
-;	MOVWF qH
-;	MOVWF qL
-;	RETLW d'255'               ; Error code= 255: return. 
-DIV_ok
-	MOVLW d'9'                 ; Otherwise, initialize variables
-	MOVWF count
-	CLRF index                 ; for the division. 
-	CLRF qU
-	CLRF qH                    
+;Div16
+;	MOVF 	btmH,w                ; Check for division by 0.
+;	IORWF	btmL,w               
+; 	BTFSS	STATUS,Z
+; 	GOTO	DIV_ok
+; 	MOVLW	d'255'
+; 	MOVWF	qH
+; 	MOVWF	qL
+; 	RETURN              ; Error code= 255: return. 
+
+; DIV_ok:
+; 	MOVLW d'1'                 ; Otherwise, initialize variables
+;  	MOVWF CL
+; 	CLRF qH                    
+; 	CLRF qL                    
+
+; Divide_sh_loop
+; 	BTFSC btmH, 7         ; Shift divisor left
+; 	GOTO Divide_d1
+; 	BCF STATUS,C               ; until msb is in 
+; 	RLF btmL,f                   ; btmH.7. 
+; 	RLF btmH,f                   ; count = no. of shifts+1. 
+; 	INCF CL,f                 
+; 	GOTO Divide_sh_loop
+
+; Divide_d1
+; 	BCF STATUS,C               
+; 	RLF qL,f                     ; Shift quotient left.
+; 	RLF qH,f
+;     ; top = top - btm. 
+; 	SUBWORDS	topL, btmL
+; 	BTFSS STATUS,C
+; 	goto Divide_less
+; 	BSF qL,0
+
+; Divide_reentr
+; 	BCF STATUS,C               
+; 	RRF btmH,f
+; 	RRF btmL,f
+; 	DECFSZ CL,f
+; 	GOTO Divide_d1
+; 	RETLW 0h                   ; Return w/ remainder in top
+                                        ; and result in q.&nsp;
+; Divide_less
+; 	ADDWORDS	topL, btmL
+; 	goto    Divide_reentr
+ 
+; Rem2Frac
+; 	MOVLW	d'8'
+;  	MOVWF	CL
+; r2f_1:
+;  	BTFSC	topH, 7
+; 	GOTO	r2f_2
+; 	BCF 	STATUS,C               
+; 	RLF 	topL,f
+; 	RLF 	topH,f
+; 	GOTO	r2f_3
+; r2f_2:
+; 	BCF 	STATUS,C               
+; 	RRF 	btmH,f
+; 	RRF 	btmL,f
+; r2f_3:
+; 	DECFSZ	CL,f
+; 	GOTO	r2f_1
+; 	CALL	Div16
+; 	RETURN
+
+Div32_16
+	CLRF	btmU
+	CLRF	btmX
+Div32
+	MOVF 	btmL,w                ; Check for division by 0.
+	IORWF	btmH,w               
+	IORWF	btmU,w
+	IORWF	btmX,w               
+	BTFSS	STATUS,Z
+	GOTO	DIV32_ok
+	MOVLW	d'255'
+	MOVWF	qL
+	MOVWF	qH
+	MOVWF	qU
+	MOVWF	qX
+	RETURN              ; Error code= 255: return. 
+
+DIV32_ok:
+	MOVLW d'1'                 ; Otherwise, initialize variables
+ 	MOVWF CL
 	CLRF qL                    
+	CLRF qH                    
+	CLRF qU
+	CLRF qX                    
 
-Divide_sh_loop
-	BTFSC btmH, 7         ; Shift divisor left
-	GOTO Divide_d1
+Div32_sh_loop
+	BTFSC btmX, 7         ; Shift divisor left
+	GOTO Div32_d1
 	BCF STATUS,C               ; until msb is in 
-	RLF btmL,f                   ; btmH.7. 
-	RLF btmH,f                   ; count = no. of shifts+1. 
-	INCF count,f                 
-	GOTO Divide_sh_loop
+	RLF btmL,f
+	RLF btmH,f
+	RLF btmU,f
+	RLF btmX,f
+	INCF CL,f                 
+	GOTO Div32_sh_loop
 
-Divide_d1
+Div32_loop
+	BCF STATUS,C               
+	RRF btmX,f
+	RRF btmU,f
+	RRF btmH,f
+	RRF btmL,f
+
+Div32_d1
 	BCF STATUS,C               
 	RLF qL,f                     ; Shift quotient left.
 	RLF qH,f
 	RLF qU,f
+	RLF qX,f
     ; top = top - btm. 
-	SUB2416	topL, btmL
+	SUB32	topL, btmL
 	BTFSS STATUS,C
-	goto Divide_less
+	goto Div32_less
 	BSF qL,0
 
-Divide_reentr
-	BCF STATUS,C               
-	RRF btmH,w                   
-	RRF btmL,w                   
-	DECFSZ count,w               
-	GOTO Divide_d1
-	RETLW 0h                   ; Return w/ remainder in top
-                                        ; and result in q.&nsp;
-Divide_less
-	ADD2416	topL, btmL
-	goto    Divide_reentr
+Div32_reentr
+	DECFSZ CL,f
+	GOTO Div32_loop
+	RETLW 0
 
-
+Div32_less
+	ADD32	topL, btmL
+	goto    Div32_reentr
 
 
 ; DMC: Bin2BCD was taken from somewhere on the internet.
