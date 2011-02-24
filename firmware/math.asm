@@ -201,15 +201,20 @@ DIV32_ok:
 	CLRF qX                    
 
 Div32_sh_loop
-	BTFSC btmX, 7         ; Shift divisor left
-	GOTO Div32_d1
-	BCF STATUS,C               ; until msb is in 
-	RLF btmL,f
-	RLF btmH,f
-	RLF btmU,f
-	RLF btmX,f
-	INCF CL,f                 
-	GOTO Div32_sh_loop
+;	BTFSC	btmX, 7         ; Shift divisor left
+;	GOTO	Div32_d1
+
+	CMP32	topL, btmL	; Z,C = top - btm
+	BTFSS	STATUS, C
+	GOTO	Div32_reentr ; negative, so btm > top, and we've gone too far!
+
+	BCF 	STATUS,C
+	RLF 	btmL,f
+	RLF 	btmH,f
+	RLF 	btmU,f
+	RLF 	btmX,f
+	INCF	CL,f                 
+	GOTO	Div32_sh_loop
 
 Div32_loop
 	BCF STATUS,C               
