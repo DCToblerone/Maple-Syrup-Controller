@@ -36,11 +36,13 @@
 	global	proc1
 	global	proc2
 
-SCHED_DATA	udata_ovr
+; BANK1
+SCHED_DATA	udata_ovr 0xA0
 proc0	res	8	; 8 for extra frac variable
 proc1	res	7
 proc2	res	7
 
+; BANK0
 _DATA	udata
 mto	res	2
 
@@ -55,7 +57,8 @@ DoDispatch MACRO p
 code_sched	code
 
 mainloop	;Function start
-
+;	BANKISEL	proc0
+;	BANKSEL	mto
 	; mto = MAX_TIMEOUT_VALUE;
 	MOVLW	0xff
 	MOVWF	mto
@@ -98,6 +101,8 @@ DPC_indjmp:
 				MOVWF	PCLATH
 				DECF	FSR,F	; get to LSB of p->func
 				MOVF	INDF,W
+;				BANKISEL	0
+;				BANKSEL	0
 				MOVWF	PCL	; jumps to p->func and returns above
 DPC_else3:
 			retlw 0 

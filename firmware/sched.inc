@@ -41,18 +41,23 @@
 ;} PROC;
 
 ScheduleTime MACRO p, _tmo
-	GetTS (proc#v(p) + 1)
+;	BSF 	STATUS, RP0	; BANK1
+	GetTS1 (proc#v(p) + 1)
 	ADDWORDLIT proc#v(p) + 1, (_tmo) * TMR0PerMicro
 	bsf proc#v(p), 0 
+	BCF 	STATUS, RP0	; BANK0
  ENDM
 
 ScheduleAddTime MACRO p, _tmo
+	BSF 	STATUS, RP0	; BANK1
 	bsf proc#v(p), 0
 	ADDWORDLIT proc#v(p) + 1, (_tmo) * TMR0PerMicro
+	BCF 	STATUS, RP0	; BANK0
  ENDM
 
 ScheduleAddAccurateTime MACRO p, _tmo
 	LOCAL next
+	BSF 	STATUS, RP0	; BANK1
 	bsf proc#v(p), 0
 	ADDWORDLIT proc#v(p) + 1, (_tmo) * TMR0PerMicro
 ;	movlw	(((_tmo << 8) * TMR0PerMicro) & 0xff) 
@@ -62,21 +67,25 @@ ScheduleAddAccurateTime MACRO p, _tmo
 	GOTO	next
 	INCWORD proc#v(p) + 1
 next:
+	BCF 	STATUS, RP0	; BANK0
  ENDM
 
 Schedule MACRO p, _flag, _tmo, _ttr, _func
-	GetTS (proc#v(p) + 1)
+;	BSF 	STATUS, RP0	; BANK1
+	GetTS1 (proc#v(p) + 1)
 	ADDWORDLIT proc#v(p) + 1, (_tmo) * TMR0PerMicro
 	movlw	_flag
 	movwf	proc#v(p)
 	bsf	proc#v(p), 0
 	SETWORDLIT proc#v(p) + 3, (_ttr) * TMR0PerMicro
 	MOVWORDFUNC proc#v(p) + 5, _func
+	BCF 	STATUS, RP0	; BANK0
  ENDM
 
 ScheduleWait MACRO p, _tmo, _ttr
 	LOCAL next
-	GetTS (proc#v(p) + 1)
+;	BSF 	STATUS, RP0	; BANK1
+	GetTS1 (proc#v(p) + 1)
 	ADDWORDLIT proc#v(p) + 1, (_tmo) * TMR0PerMicro
 	bsf	proc#v(p), 0
 	SETWORDLIT proc#v(p) + 3, (_ttr) * TMR0PerMicro
@@ -86,18 +95,23 @@ ScheduleWait MACRO p, _tmo, _ttr
 ;	movlw	high($+3)
 	movlw	high(next)
 	movwf	proc#v(p) + 6
+	BCF 	STATUS, RP0	; BANK0
 	goto	mainloop
 next:
  ENDM
 
 ScheduleWaitForTimeout MACRO p
-	LOCAL next
-;	btfss	proc#v(p), 0
-;	goto	next
+	LOCAL next, out
+	BSF 	STATUS, RP0	; BANK1
+	btfss	proc#v(p), 0
+	goto	out
 	movlw	low(next)
 	movwf	proc#v(p) + 5
 	movlw	high(next)
 	movwf	proc#v(p) + 6
+	BCF 	STATUS, RP0	; BANK0
 	goto	mainloop
+out:
+	BCF 	STATUS, RP0	; BANK0
 next:
  ENDM
