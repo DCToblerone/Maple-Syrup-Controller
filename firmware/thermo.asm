@@ -87,6 +87,23 @@ ThermoInit
 	MOVLW	0xff
 	movwf	P2Min
 	movwf	P2Min+1
+
+	movlw	0
+	CALL	LCDGotoCGRAM
+	clrf	CL
+	movlw	B'00011111'
+ti_loop:
+	movwf	CH
+	BTFSS	CH,0
+	GOTO	ti_done
+	BSF 	CL,3	; set CL = 8
+	CALL	LCDFillChar	; w = CH still (returns with CL = 0)
+	BCF 	STATUS, C	; don't shift in a 1
+	RRF 	CH,w
+	GOTO	ti_loop
+ti_done:
+	movlw	0
+	CALL	LCDGoto	; switch back to DDRAM
 	RETURN
 
 ThermoThread
@@ -360,34 +377,40 @@ to_1:
 	SUBWORDS	BX, P2Min
 	BTFSS	STATUS,C
 	goto	to_full	; P2Count < Min, tank is FULL
-	SETWORDLIT	AX, 6
+	movlw	30	; 6*5
+	movwf	AX
+	CLRF	AX+1
 	CALL	Mult16x16
 	MOVWORD	BX, P2Max
 	SUBWORDS	BX, P2Min
 	CALL	Div32_16
 
-	movf	DX,	w
-	BTFSC	STATUS, Z
-	GOTO	to_nosp
-	movwf	DX+1
-to_space:
-	movlw	' '
-	call LCDPutChar
-	decfsz	DX+1, f
-	GOTO	to_space
-
-to_nosp:
 	movlw	6
-	subwf	DX,f
-	BTFSC	STATUS, Z
-	GOTO	to_done
-to_star:
-	movlw	'*'
-	call LCDPutChar
-	incfsz	DX, f
-	GOTO	to_star
+	movwf	CL
+to_20:
+	movlw	5
+	subwf	DX, f
+	BTFSS	STATUS, C
+	GOTO	to_30
+	movlw	' '	; space (i.e. no block)
+	call	LCDPutChar
+	decfsz	CL,f
+	GOTO	to_20
+	GOTO	to_done	; I don't think we'll ever get here, but if we do.. get out!
+to_30:
+	movlw	5
+	addwf	DX, w	; this will be the char to put out too!
+	call	LCDPutChar
+	GOTO	to_50
+to_40:
+	movlw	0	; full block
+	call	LCDPutChar
+to_50:
+	decfsz	CL,f
+	GOTO	to_40
 
-to_done
+to_done:
+
 	RETURN
 
 str_empty	DT	"EMPTY!", 0
