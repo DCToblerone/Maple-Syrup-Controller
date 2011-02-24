@@ -51,32 +51,35 @@
 	global	internalDelayUs
 	global	EERead
 	global	EEWrite
+	global	DispMode
 
 ;--------------------------------------------------------
 ; global definitions
 ;--------------------------------------------------------
 ; Shared data available in all banks
-_SHARED udata_ovr 0x70
+SHAREBANK UDATA_SHR
 ; DMC: really only WSAVE is needed to be shared since SaveContext
 ;      immediately switchs to Bank0 after WREG is saved to WSAVE
 WSAVE	res	1	; WREG
+; put these in shared bank since GetTS macro needs to work from BANK1
+TMR0H	res	1
+TMR0U	res	1
 
-_DATA UDATA ;0x0C
+_DATA UDATA
 PSAVE	res	1	; PCLATH
 SSAVE	res	1	; STATUS
 
 AX	res	2
-BX	res	2
+BX	res	4
 CX	res	2
-DX	res	3
+DX	res	4
 
-TMR0H	res	1
-TMR0U	res	1
 ;RB0Time	res	2
 btntmp	res	1
 nButts	res	1
 Butts	res	4	; make this a power of 2 so that incf nButts will wrap!
 ;ISRFlags	res	1
+DispMode	RES	1
 
 SaveContext	MACRO
 	movwf	WSAVE ; save off current 0x0000 register contents
@@ -204,6 +207,9 @@ IDU_else:
 ; input: w = EEPROM offset 00 - 3f, FSR set to destination
 ; output: data read into INDF and w++ and FSR++
 EERead
+	BANKSEL	EECON1
+	btfsc	EECON1, WR	; wait for any previous write to complete
+	goto	$-1
 	BANKSEL	EEADR
 	movwf	EEADR
 	BANKSEL	EECON1
