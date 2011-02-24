@@ -262,6 +262,28 @@ CMPWORD MACRO d,s
 done:
  ENDM
 
+CMP32 MACRO d,s
+	local done
+	movf	s+3,w
+	subwf	d+3,w	; w = d[3] - s[3]
+	btfsc	STATUS, C
+	btfss	STATUS, Z
+	goto	done	; C = 0 result is negative or C = 1 and Z = 0 result is positive
+	movf	s+2,w
+	subwf	d+2,w	; w = d[1] - s[1]
+	btfsc	STATUS, C
+	btfss	STATUS, Z
+	goto	done	; C = 0 result is negative or C = 1 and Z = 0 result is positive
+	movf	s+1,w
+	subwf	d+1,w	; w = d[1] - s[1]
+	btfsc	STATUS, C
+	btfss	STATUS, Z
+	goto	done	; C = 0 result is negative or C = 1 and Z = 0 result is positive
+	movf	s,w
+	subwf	d,w	; w = d - lit
+done:
+ ENDM
+
 ; d -= lit
 SUBWORDLIT MACRO d,lit
 	movlw	((lit)&0xff) 
