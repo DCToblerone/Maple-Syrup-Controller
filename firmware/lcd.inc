@@ -29,7 +29,9 @@
 
 	extern	LCDInit
 	extern	LCDGoto
+	extern	LCDGotoCGRAM
 	extern	LCDPutChar
+	extern	LCDFillChar
 	extern	LCDPutHex
 	extern	LCDPutUInt
 	extern	LCDPutFpDX

@@ -33,7 +33,9 @@
 
 	global	LCDInit
 	global	LCDGoto
+	global	LCDGotoCGRAM
 	global	LCDPutChar
+	global	LCDFillChar
 	global	LCDPutCStr
 	global	LCDPutStr
 	global	LCDClear
@@ -195,10 +197,30 @@ LCDGoto
 	CALL	LCDWrite
 	goto	LCDDone
 
+LCDGotoCGRAM
+	call	LCDMode
+	BCF 	sav_RS, LCD_RS
+	IORLW	FUNC_CGRA
+	CALL	LCDWrite
+	goto	LCDDone
+
 LCDPutChar
 	call	LCDMode
 	BSF 	sav_RS, LCD_RS
 	CALL	LCDWrite
+	goto	LCDDone
+
+LCDFillChar	; CL = count
+	MOVF	CL,f	; just set Z flag
+	BTFSC	STATUS, Z
+	RETURN	; CL is 0, nothing to do
+	call	LCDMode
+	BSF 	sav_RS, LCD_RS
+lcdfc_loop:
+	CALL	LCDWrite
+	MOVF	lcd_wsave,w	; get input back (LCDWrite saves w there)
+	decfsz	CL,f
+	goto	lcdfc_loop
 	goto	LCDDone
 
 LCDPutHex
@@ -217,7 +239,6 @@ LCDPutHex
 	CALL	HexDigit
 	CALL	LCDWrite
 	goto	LCDDone
-
 
 LCDPutCStr
 	call	LCDMode
@@ -322,15 +343,15 @@ wr0_zero
 
 ; Assumes that LCDMode has already been called!
 LCDWrite	;Function start
-	MOVWF	CL
+	MOVWF	lcd_wsave
 	CALL	LCDWait	; Is controller busy?
-	MOVF	CL,w	; get input back!
+	MOVF	lcd_wsave,w	; get input back!
 	; DMC: RB7:4 should be 0000 and this is the default state!
 	ANDLW	0xf0
 	IORWF	PORTB, F
 	LCD_STROBE	; keeps W
 	XORWF	PORTB, F	; clears RB7:4
-	SWAPF	CL,W
+	SWAPF	lcd_wsave,W
 	ANDLW	0xf0
 	IORWF	PORTB, F
 	LCD_STROBE	; keeps W
